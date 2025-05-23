@@ -1,8 +1,27 @@
 const MsgSC = require("../dbschema/MessageSchema");
 const UserS = require("../dbschema/UserSchema");
 
+// Helper function to broadcast active users to all clients
+const broadcastActiveUsers = (clients) => {
+  // Create an array of active usernames
+  const activeUsers = Array.from(clients.keys());
+  
+  // Broadcast to all connected clients
+  clients.forEach((socket) => {
+    const statusUpdate = {
+      type: "status_update",
+      activeUsers: activeUsers
+    };
+    socket.send(JSON.stringify(statusUpdate));
+  });
+};
+
 const setUserName = async (clients, message, player, ws) => {
   clients.set(message.UserName, ws);
+  
+  // Broadcast updated active users to all clients
+  broadcastActiveUsers(clients);
+  
   const offlinemessage = await MsgSC.findOne({ receiver: message.UserName });
   if (offlinemessage) {
     if (offlinemessage.OfflineMessage.length > 0) {
