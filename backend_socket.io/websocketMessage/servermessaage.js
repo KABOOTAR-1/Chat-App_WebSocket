@@ -1,5 +1,6 @@
 const MsgSC = require("../dbschema/MessageSchema");
 const UserS = require("../dbschema/UserSchema");
+const { generateToken, verifyToken } = require("../middleware/auth");
 
 // Helper function to broadcast active users to all clients
 const broadcastActiveUsers = (clients) => {
@@ -17,7 +18,15 @@ const broadcastActiveUsers = (clients) => {
 };
 
 const setUserName = async (clients, message, player, ws) => {
+  const token = generateToken(message.UserName);
+  ws.userToken = token; // Store token in ws object
   clients.set(message.UserName, ws);
+  
+  // Send token once during authentication
+  ws.send(JSON.stringify({
+    type: "auth",
+    token: token
+  }));
   
   // Broadcast updated active users to all clients
   broadcastActiveUsers(clients);
@@ -83,15 +92,30 @@ const storeOfflineMessage = async (sender, recipient, message) => {
     });
 };
 
+const sanitizeMessage = (message) => {
+  const { token, ...cleanMessage } = message;
+  return cleanMessage;
+};
+
 const getMessage = async (ws, data, clients) => {
   const message = JSON.parse(data);
-  console.log(message);
-  const player = await UserS.findOne({ username: message.UserName });
-  if (message.type == "username") {
+  
+  if (message.type === "username") {
+    const player = await UserS.findOne({ username: message.UserName });
     setUserName(clients, message, player, ws);
   } else {
-    //console.log(clients.size);
-    handleMessage(message.UserName, message.receiver, message, clients);
+    // Verify token from message matches stored token
+    if (!ws.userToken || message.token !== ws.userToken || 
+        !verifyToken(message.token) || 
+        verifyToken(message.token).username !== message.UserName) {
+      ws.send(JSON.stringify({
+        type: "error",
+        message: "Unauthorized"
+      }));
+      return;
+    }
+    const cleanMessage = sanitizeMessage(message);
+    handleMessage(message.UserName, message.receiver, cleanMessage, clients);
   }
 };
 

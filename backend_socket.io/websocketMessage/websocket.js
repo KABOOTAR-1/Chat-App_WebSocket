@@ -17,19 +17,17 @@ const broadcastActiveUsers = (clients) => {
 };
 
 const socketConnect = (wss, clients) => {
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws) => {  // Removed req parameter
     console.log("Client connected");
     ws.isAlive = true;
 
     ws.on("pong", () => {
-      //console.log("Received pong from client");
       ws.isAlive = true;
     });
 
     ws.on("message", (data) => {
       if (data.toString() === "ping") {
         // If the client sends a "ping" message, respond with a "pong" message
-        console.log("Received ping from client");
       } else {
         try {
           getMessage(ws, data, clients);

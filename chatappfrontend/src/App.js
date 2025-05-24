@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import ChatBox from "./ChatBox"; // Import the ChatBox component
 import axios from "axios";
 import "./App.css"; // Import the CSS file for styling
@@ -12,6 +12,7 @@ function App() {
   const [myUserName, setMyUserName] = useState("");
   const [users, setUsers] = useState([]); // State to store the current username
   const [activeUsers, setActiveUsers] = useState([]); // State to store active users
+  const tokenRef = useRef(null);
   const fetchData = async () => {
     try {
       const response = await axios.get("http://localhost:4000"); // Replace with your backend URL
@@ -25,28 +26,29 @@ function App() {
     }
   };
   useEffect(() => {
+    // Check for existing token in localStorage
+
     // Connect to WebSocket server
     const newSocket = new WebSocket("ws://localhost:4000");
 
     // Event listeners
     newSocket.onopen = () => {
       console.log("Connected to server");
-
-      // Start the ping-pong mechanism after the connection is established
-      // startPingPong(newSocket);
+      // If we have saved credentials, authenticate immediately
     };
 
     newSocket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       console.log("Received message:", message);
       
-      // Handle different message types
-      if (message.type === "status_update") {
-        // Update the active users list
+      if (message.type === "auth") {
+        tokenRef.current = message.token;
+      } else if (message.type === "error" && message.message === "Unauthorized") {
+        // Handle token expiry
+        handleLogout();
+      } else if (message.type === "status_update") {
         setActiveUsers(message.activeUsers);
-        console.log("Active users updated:", message.activeUsers);
       } else {
-        // Add regular messages to the list of messages
         setMessages((prevMessages) => [...prevMessages, message]);
       }
     };
@@ -61,11 +63,22 @@ function App() {
 
       // You can add further handling if needed
     });
-
+    //startPingPong(newSocket); // Start the ping-pong mechanism
     setSocket(newSocket);
 
-    return () => newSocket.close();
+    return () => {
+      newSocket.close();
+      handleLogout();
+    };
   }, []);
+
+  const handleLogout = () => {
+    tokenRef.current = null;
+    setMyUserName('');
+    setUsername('');
+    setMessages([]);
+    setActiveUsers([]);
+  };
 
   const handleInputChange = (event) => {
     setInputMessage(event.target.value);
@@ -84,7 +97,7 @@ function App() {
   };
 
   const sendMessage = () => {
-    if (reciverusername === "") return;
+    if (reciverusername === "" || !tokenRef.current) return;
 
     const myMessage = inputMessage;
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -94,6 +107,7 @@ function App() {
           UserName: myUserName,
           receiver: reciverusername,
           message: myMessage,
+          token: tokenRef.current
         })
       );
       setInputMessage("");
@@ -104,7 +118,7 @@ function App() {
     setUsername(event.target.value); // Only update the input field value
   };
 
-  // Function to start the ping-pong mechanism
+  //Function to start the ping-pong mechanism
   // const startPingPong = (socket) => {
   //   // Start the ping-pong mechanism
   //   setInterval(() => {
@@ -113,13 +127,18 @@ function App() {
   //       console.log("We are sending a ping message");
   //       socket.send("ping");
   //     }
-  //   }, 10000);
+  //   }, 90);
   // };
 
   return (
     <div className="chat-app">
       <div className="header">
         <h1>WebSocket Chat</h1>
+        {myUserName && (
+          <button className="btn logout" onClick={handleLogout}>
+            Logout
+          </button>
+        )}
       </div>
       
       <div className="main-container">

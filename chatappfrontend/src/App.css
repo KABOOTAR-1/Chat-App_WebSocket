@@ -49,9 +49,22 @@
 }
 
 .header {
-  padding: 10px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
   border-bottom: 1px solid #eee;
   flex-shrink: 0;
+}
+
+.btn.logout {
+  background: #dc3545;
+  color: white;
+  padding: 8px 16px;
+}
+
+.btn.logout:hover {
+  background: #c82333;
 }
 
 .main-container {
