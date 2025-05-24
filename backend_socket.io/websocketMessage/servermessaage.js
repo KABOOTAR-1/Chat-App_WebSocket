@@ -19,36 +19,47 @@ const broadcastActiveUsers = (clients) => {
 
 const setUserName = async (clients, message, player, ws) => {
   const token = generateToken(message.UserName);
-  ws.userToken = token; // Store token in ws object
+  ws.userToken = token;
   clients.set(message.UserName, ws);
   
-  // Send token once during authentication
+  // Send token to client
   ws.send(JSON.stringify({
     type: "auth",
     token: token
   }));
   
-  // Broadcast updated active users to all clients
+  // Broadcast updated active users
   broadcastActiveUsers(clients);
   
-  const offlinemessage = await MsgSC.findOne({ receiver: message.UserName });
-  if (offlinemessage) {
-    if (offlinemessage.OfflineMessage.length > 0) {
-      offlinemessage.OfflineMessage.forEach(async (message) => {
-        const newMessage = {
-          type: "message",
-          UserName: offlinemessage.sender,
-          message: message,
-        };
-        ws.send(JSON.stringify(newMessage));
-        offlinemessage.OfflineMessage = [];
-      });
-      await offlinemessage.save();
+  // Fetch all offline messages for this user
+  const offlineMessages = await MsgSC.find({ 
+    receiver: message.UserName,
+    OfflineMessage: { $exists: true, $ne: [] }
+  });
+
+  // Send each offline message to the user
+  for (const msgDoc of offlineMessages) {
+    for (const msg of msgDoc.OfflineMessage) {
+    
+      const newMessage = {
+        type: "message",
+        UserName: msgDoc.sender,
+        receiver: msgDoc.receiver,
+        message: msg
+      };
+      ws.send(JSON.stringify(newMessage));
     }
+    // Clear the offline messages after sending
+    msgDoc.OfflineMessage = [];
+    await msgDoc.save();
   }
-  if (player != null) return;
-  player = new UserS({ username: message.UserName });
-  await player.save();
+
+  // Create new user if doesn't exist
+  if (!player) {
+    player = new UserS({ username: message.UserName });
+    await player.save();
+  }
+  
   console.log(`${message.UserName} connected`);
   return;
 };

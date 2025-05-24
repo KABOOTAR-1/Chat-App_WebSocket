@@ -48,8 +48,22 @@ function App() {
         handleLogout();
       } else if (message.type === "status_update") {
         setActiveUsers(message.activeUsers);
-      } else {
-        setMessages((prevMessages) => [...prevMessages, message]);
+      } else if (message.type === "message") {
+        setMessages(prevMessages => {
+          // Check if message already exists to avoid duplicates
+          const exists = prevMessages.some(msg => 
+            msg.message === message.message && 
+            msg.UserName === message.UserName &&
+            msg.receiver === message.receiver
+          );
+          if (!exists) {
+            return [...prevMessages, {
+              ...message,
+              timestamp: message.timestamp || new Date().toISOString()
+            }];
+          }
+          return prevMessages;
+        });
       }
     };
 
@@ -177,7 +191,11 @@ function App() {
               </div>
               
               <div className="message-section">
-                <ChatBox messages={messages} myUserName={myUserName} />
+                <ChatBox 
+                  messages={messages} 
+                  myUserName={myUserName} 
+                  selectedUser={reciverusername} 
+                />
                 <div className="message-input">
                   <input
                     type="text"
