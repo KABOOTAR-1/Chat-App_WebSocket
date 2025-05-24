@@ -1,6 +1,7 @@
 const MsgSC = require("../dbschema/MessageSchema");
 const UserS = require("../dbschema/UserSchema");
 const { generateToken, verifyToken } = require("../middleware/auth");
+const bcrypt = require('bcrypt');
 
 // Helper function to broadcast active users to all clients
 const broadcastActiveUsers = (clients) => {
@@ -18,50 +19,75 @@ const broadcastActiveUsers = (clients) => {
 };
 
 const setUserName = async (clients, message, player, ws) => {
-  const token = generateToken(message.UserName);
-  ws.userToken = token;
-  clients.set(message.UserName, ws);
-  
-  // Send token to client
-  ws.send(JSON.stringify({
-    type: "auth",
-    token: token
-  }));
-  
-  // Broadcast updated active users
-  broadcastActiveUsers(clients);
-  
-  // Fetch all offline messages for this user
-  const offlineMessages = await MsgSC.find({ 
-    receiver: message.UserName,
-    OfflineMessage: { $exists: true, $ne: [] }
-  });
-
-  // Send each offline message to the user
-  for (const msgDoc of offlineMessages) {
-    for (const msg of msgDoc.OfflineMessage) {
-    
-      const newMessage = {
-        type: "message",
-        UserName: msgDoc.sender,
-        receiver: msgDoc.receiver,
-        message: msg
-      };
-      ws.send(JSON.stringify(newMessage));
+  // Split username and password
+  const [username, password] = message.UserName.split(':');
+  console.log(username, password);
+  // Check if username and password are provided
+  try {
+    // Check if user exists
+    if (player) {
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, player.password);
+      if (!isValidPassword) {
+        ws.send(JSON.stringify({
+          type: "error",
+          message: "Invalid password"
+        }));
+        return;
+      }
+    } else {
+      // New user - hash password and create account
+      const hashedPassword = await bcrypt.hash(password, 10);
+      player = new UserS({
+        username: username,
+        password: hashedPassword
+      });
+      await player.save();
     }
-    // Clear the offline messages after sending
-    msgDoc.OfflineMessage = [];
-    await msgDoc.save();
-  }
 
-  // Create new user if doesn't exist
-  if (!player) {
-    player = new UserS({ username: message.UserName });
-    await player.save();
+    const token = generateToken(username);
+    ws.userToken = token;
+    clients.set(username, ws);
+    
+    // Send token to client
+    ws.send(JSON.stringify({
+      type: "auth",
+      token: token
+    }));
+    
+    // Broadcast updated active users
+    broadcastActiveUsers(clients);
+    
+    // Fetch all offline messages for this user
+    const offlineMessages = await MsgSC.find({ 
+      receiver: username,
+      OfflineMessage: { $exists: true, $ne: [] }
+    });
+
+    // Send offline messages
+    for (const msgDoc of offlineMessages) {
+      for (const msg of msgDoc.OfflineMessage) {
+        const newMessage = {
+          type: "message",
+          UserName: msgDoc.sender,
+          receiver: msgDoc.receiver,
+          message: msg
+        };
+        ws.send(JSON.stringify(newMessage));
+      }
+      msgDoc.OfflineMessage = [];
+      await msgDoc.save();
+    }
+    
+    console.log(`${username} connected`);
+    
+  } catch (error) {
+    console.error('Authentication error:', error);
+    ws.send(JSON.stringify({
+      type: "error",
+      message: "Authentication failed"
+    }));
   }
-  
-  console.log(`${message.UserName} connected`);
-  return;
 };
 
 const handleMessage = (sender, recipient, message, clients) => {
@@ -112,7 +138,8 @@ const getMessage = async (ws, data, clients) => {
   const message = JSON.parse(data);
   
   if (message.type === "username") {
-    const player = await UserS.findOne({ username: message.UserName });
+    const [username] = message.UserName.split(':');
+    const player = await UserS.findOne({ username: username });
     setUserName(clients, message, player, ws);
   } else {
     // Verify token from message matches stored token

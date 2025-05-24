@@ -13,6 +13,7 @@ function App() {
   const [users, setUsers] = useState([]); // State to store the current username
   const [activeUsers, setActiveUsers] = useState([]); // State to store active users
   const tokenRef = useRef(null);
+  const [password, setPassword] = useState(""); // Add password state
   const fetchData = async () => {
     try {
       const response = await axios.get("http://localhost:4000"); // Replace with your backend URL
@@ -99,15 +100,16 @@ function App() {
   };
 
   const setUsernameAndSendMessage = () => {
-    if (!username.trim()) return; // Don't set empty usernames
+    if (!username.trim() || !password.trim()) return; // Check both username and password
     
     fetchData();
-    setMyUserName(username); // Set the myUserName only when button is clicked
+    setMyUserName(username);
     
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: "username", UserName: username }));
+      // Combine username and password with a delimiter
+      const combinedCredentials = `${username}:${password}`;
+      socket.send(JSON.stringify({ type: "username", UserName: combinedCredentials }));
     }
-    // Don't clear the username here since we need it for display
   };
 
   const sendMessage = () => {
@@ -164,6 +166,13 @@ function App() {
                 value={username}
                 onChange={handleUserName}
                 placeholder="Enter your username"
+                className="input-field"
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
                 className="input-field"
               />
               <button className="btn primary" onClick={setUsernameAndSendMessage}>
