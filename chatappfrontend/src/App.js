@@ -28,45 +28,50 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    // Check for existing token in localStorage
-
-    // Connect to WebSocket server
+  const handleSocketConnection = () => {
     const newSocket = new WebSocket("ws://localhost:4000");
 
     // Event listeners
     newSocket.onopen = () => {
       console.log("Connected to server");
+      const combinedCredentials = `${username}:${password}`;
+      newSocket.send(
+        JSON.stringify({ type: "username", UserName: combinedCredentials })
+      );
       // If we have saved credentials, authenticate immediately
     };
 
     newSocket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       console.log("Received message:", message);
-      
+
       if (message.type === "auth") {
         //console.log("Message ",username)
-        const {username} = jwtDecode(message.token);
+        const { username } = jwtDecode(message.token);
         tokenRef.current = message.token;
-            setMyUserName(username);
+        setMyUserName(username);
       } else if (message.type === "error") {
         // Handle token expiry
         handleLogout();
       } else if (message.type === "status_update") {
         setActiveUsers(message.activeUsers);
       } else if (message.type === "message") {
-        setMessages(prevMessages => {
+        setMessages((prevMessages) => {
           // Check if message already exists to avoid duplicates
-          const exists = prevMessages.some(msg => 
-            msg.message === message.message && 
-            msg.UserName === message.UserName &&
-            msg.receiver === message.receiver
+          const exists = prevMessages.some(
+            (msg) =>
+              msg.message === message.message &&
+              msg.UserName === message.UserName &&
+              msg.receiver === message.receiver
           );
           if (!exists) {
-            return [...prevMessages, {
-              ...message,
-              timestamp: message.timestamp || new Date().toISOString()
-            }];
+            return [
+              ...prevMessages,
+              {
+                ...message,
+                timestamp: message.timestamp || new Date().toISOString(),
+              },
+            ];
           }
           return prevMessages;
         });
@@ -85,19 +90,27 @@ function App() {
     });
     //startPingPong(newSocket); // Start the ping-pong mechanism
     setSocket(newSocket);
+  };
+
+  useEffect(() => {
+    // Check for existing token in localStorage
+
+    // Connect to WebSocket server
 
     return () => {
-      newSocket.close();
+      socket?.close();
       handleLogout();
     };
   }, []);
 
   const handleLogout = () => {
     tokenRef.current = null;
-    setMyUserName('');
-    setUsername('');
+    setMyUserName("");
+    setUsername("");
     setMessages([]);
     setActiveUsers([]);
+    socket?.close();
+    setSocket(null);
   };
 
   const handleInputChange = (event) => {
@@ -106,15 +119,9 @@ function App() {
 
   const setUsernameAndSendMessage = () => {
     if (!username.trim() || !password.trim()) return; // Check both username and password
-    
-    fetchData();
 
-    
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      // Combine username and password with a delimiter
-      const combinedCredentials = `${username}:${password}`;
-      socket.send(JSON.stringify({ type: "username", UserName: combinedCredentials }));
-    }
+    fetchData();
+    handleSocketConnection();
   };
 
   const sendMessage = () => {
@@ -128,7 +135,7 @@ function App() {
           UserName: myUserName,
           receiver: reciverusername,
           message: myMessage,
-          token: tokenRef.current
+          token: tokenRef.current,
         })
       );
       setInputMessage("");
@@ -140,7 +147,7 @@ function App() {
   };
 
   const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
+    if (event.key === "Enter") {
       event.preventDefault();
       sendMessage();
     }
@@ -168,7 +175,7 @@ function App() {
           </button>
         )}
       </div>
-      
+
       <div className="main-container">
         <div className="login-section">
           {!myUserName ? (
@@ -187,7 +194,10 @@ function App() {
                 placeholder="Enter your password"
                 className="input-field"
               />
-              <button className="btn primary" onClick={setUsernameAndSendMessage}>
+              <button
+                className="btn primary"
+                onClick={setUsernameAndSendMessage}
+              >
                 Join Chat
               </button>
             </div>
@@ -200,22 +210,26 @@ function App() {
                     <button
                       key={user._id}
                       onClick={() => setReceiverUsername(user.username)}
-                      className={`user-btn ${reciverusername === user.username ? 'active' : ''}`}
+                      className={`user-btn ${
+                        reciverusername === user.username ? "active" : ""
+                      }`}
                     >
                       {user.username}
                       {activeUsers.includes(user.username) && (
-                        <span className="active-status" title="Online">•</span>
+                        <span className="active-status" title="Online">
+                          •
+                        </span>
                       )}
                     </button>
                   ))}
                 </div>
               </div>
-              
+
               <div className="message-section">
-                <ChatBox 
-                  messages={messages} 
-                  myUserName={myUserName} 
-                  selectedUser={reciverusername} 
+                <ChatBox
+                  messages={messages}
+                  myUserName={myUserName}
+                  selectedUser={reciverusername}
                 />
                 <div className="message-input">
                   <input
