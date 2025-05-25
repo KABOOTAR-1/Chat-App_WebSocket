@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import ChatBox from "./ChatBox"; // Import the ChatBox component
 import axios from "axios";
 import "./App.css"; // Import the CSS file for styling
+import { jwtDecode } from "jwt-decode"; // Import the JWT library
 
 function App() {
   const [socket, setSocket] = useState(null);
@@ -26,6 +27,7 @@ function App() {
       console.error("Error fetching data:", error);
     }
   };
+
   useEffect(() => {
     // Check for existing token in localStorage
 
@@ -43,8 +45,11 @@ function App() {
       console.log("Received message:", message);
       
       if (message.type === "auth") {
+        //console.log("Message ",username)
+        const {username} = jwtDecode(message.token);
         tokenRef.current = message.token;
-      } else if (message.type === "error" && message.message === "Unauthorized") {
+            setMyUserName(username);
+      } else if (message.type === "error") {
         // Handle token expiry
         handleLogout();
       } else if (message.type === "status_update") {
@@ -103,7 +108,7 @@ function App() {
     if (!username.trim() || !password.trim()) return; // Check both username and password
     
     fetchData();
-    setMyUserName(username);
+
     
     if (socket && socket.readyState === WebSocket.OPEN) {
       // Combine username and password with a delimiter
