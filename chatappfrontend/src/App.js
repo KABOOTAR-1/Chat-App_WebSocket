@@ -139,6 +139,13 @@ function App() {
     setUsername(event.target.value); // Only update the input field value
   };
 
+  const handleKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      sendMessage();
+    }
+  };
+
   //Function to start the ping-pong mechanism
   // const startPingPong = (socket) => {
   //   // Start the ping-pong mechanism
@@ -215,6 +222,7 @@ function App() {
                     type="text"
                     value={inputMessage}
                     onChange={handleInputChange}
+                    onKeyPress={handleKeyPress}
                     placeholder="Type your message..."
                     className="input-field"
                   />

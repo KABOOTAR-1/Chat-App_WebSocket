@@ -141,13 +141,12 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 .message-input {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: relative;
   background: white;
   padding: 15px;
   border-top: 1px solid #eee;
