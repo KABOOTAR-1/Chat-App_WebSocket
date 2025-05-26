@@ -15,17 +15,21 @@ function App() {
   const [activeUsers, setActiveUsers] = useState([]); // State to store active users
   const tokenRef = useRef(null);
   const [password, setPassword] = useState(""); // Add password state
-  const fetchData = async () => {
-    try {
-      const response = await axios.get("http://localhost:4000"); // Replace with your backend URL
-      const players = response.data.filter(
-        (user) => user.username !== username
-      );
-      console.log(players);
-      setUsers(players);
-    } catch (error) {
-      console.error("Error fetching data:", error);
+  const fetchData = async (shouldFetchData = true,activeUsers=null) => {
+    if (shouldFetchData) {
+      try {
+        const response = await axios.get("http://localhost:4000"); // Replace with your backend URL
+        const players = response.data.filter(
+          (user) => user.username !== username
+        );
+        console.log(players);
+        setUsers(players);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
     }
+    if(activeUsers!=null)
+    setActiveUsers(activeUsers);
   };
 
   const handleSocketConnection = () => {
@@ -54,7 +58,7 @@ function App() {
         // Handle token expiry
         handleLogout();
       } else if (message.type === "status_update") {
-        setActiveUsers(message.activeUsers);
+        fetchData(message.isNewUSer,message.activeUsers);
       } else if (message.type === "message") {
         setMessages((prevMessages) => {
           // Check if message already exists to avoid duplicates

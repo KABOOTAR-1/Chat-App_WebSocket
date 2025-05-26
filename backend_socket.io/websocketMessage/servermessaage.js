@@ -4,7 +4,7 @@ const { generateToken, verifyToken } = require("../middleware/auth");
 const bcrypt = require('bcrypt');
 
 // Helper function to broadcast active users to all clients
-const broadcastActiveUsers = (clients) => {
+const broadcastActiveUsers = (clients,isNewUSer) => {
   // Create an array of active usernames
   const activeUsers = Array.from(clients.keys());
   
@@ -12,7 +12,8 @@ const broadcastActiveUsers = (clients) => {
   clients.forEach((socket) => {
     const statusUpdate = {
       type: "status_update",
-      activeUsers: activeUsers
+      activeUsers: activeUsers,
+      isNewUSer: isNewUSer,
     };
     socket.send(JSON.stringify(statusUpdate));
   });
@@ -22,6 +23,7 @@ const setUserName = async (clients, message, player, ws) => {
   // Split username and password
   const [username, password] = message.UserName.split(':');
   console.log(username, password);
+  let isNewUSer=false;
   // Check if username and password are provided
   try {
     // Check if user exists
@@ -42,6 +44,7 @@ const setUserName = async (clients, message, player, ws) => {
         username: username,
         password: hashedPassword
       });
+      isNewUSer=true;
       await player.save();
     }
 
@@ -56,7 +59,7 @@ const setUserName = async (clients, message, player, ws) => {
     }));
     
     // Broadcast updated active users
-    broadcastActiveUsers(clients);
+    broadcastActiveUsers(clients,isNewUSer);
     
     // Fetch all offline messages for this user
     const offlineMessages = await MsgSC.find({ 
