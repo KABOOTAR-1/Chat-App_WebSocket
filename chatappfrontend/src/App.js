@@ -8,6 +8,7 @@ function App() {
   const [socket, setSocket] = useState(null);
   const [inputMessage, setInputMessage] = useState("");
   const [messages, setMessages] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [username, setUsername] = useState("");
   const [reciverusername, setReceiverUsername] = useState("");
   const [myUserName, setMyUserName] = useState("");
@@ -50,35 +51,68 @@ function App() {
       console.log("Received message:", message);
 
       if (message.type === "auth") {
-        //console.log("Message ",username)
         const { username } = jwtDecode(message.token);
         tokenRef.current = message.token;
         setMyUserName(username);
+        setIsLoadingHistory(true); // Start loading history
       } else if (message.type === "error") {
         // Handle token expiry
         handleLogout();
       } else if (message.type === "status_update") {
-        fetchData(message.isNewUSer,message.activeUsers);
-      } else if (message.type === "message") {
+        fetchData(message.isNewUSer, message.activeUsers);
+      } else if (message.type === "history_message") {
+        // Handle historical messages
         setMessages((prevMessages) => {
           // Check if message already exists to avoid duplicates
           const exists = prevMessages.some(
             (msg) =>
               msg.message === message.message &&
               msg.UserName === message.UserName &&
-              msg.receiver === message.receiver
+              msg.receiver === message.receiver &&
+              msg.messageType === "history"
           );
           if (!exists) {
             return [
               ...prevMessages,
               {
                 ...message,
+                messageType: "history",
                 timestamp: message.timestamp || new Date().toISOString(),
               },
             ];
           }
           return prevMessages;
         });
+      } else if (message.type === "history_complete") {
+        // History loading is complete
+        setIsLoadingHistory(false);
+        console.log("Message history loading complete");
+      } else if (message.type === "message") {
+        // Handle new live messages
+        setMessages((prevMessages) => {
+          // Check if message already exists to avoid duplicates
+          const exists = prevMessages.some(
+            (msg) =>
+              msg.message === message.message &&
+              msg.UserName === message.UserName &&
+              msg.receiver === message.receiver &&
+              msg.messageType === "live"
+          );
+          if (!exists) {
+            return [
+              ...prevMessages,
+              {
+                ...message,
+                messageType: "live",
+                timestamp: message.timestamp || new Date().toISOString(),
+              },
+            ];
+          }
+          return prevMessages;
+        });
+      } else if (message.type === "pong") {
+        // Received pong from server
+        console.log("Received pong from server");
       }
     };
 
@@ -86,13 +120,11 @@ function App() {
       console.log("Disconnected from server");
     };
 
-    // Event listener to handle pong messages from the server
-    newSocket.addEventListener("pong", () => {
-      console.log("Received pong from server");
-
-      // You can add further handling if needed
-    });
-    //startPingPong(newSocket); // Start the ping-pong mechanism
+    // Start the ping-pong mechanism
+    const pingInterval = startPingPong(newSocket);
+    
+    // Store the interval ID for cleanup
+    newSocket.pingInterval = pingInterval;
     setSocket(newSocket);
   };
 
@@ -102,7 +134,13 @@ function App() {
     // Connect to WebSocket server
 
     return () => {
-      socket?.close();
+      if (socket) {
+        // Clear the ping interval if it exists
+        if (socket.pingInterval) {
+          clearInterval(socket.pingInterval);
+        }
+        socket.close();
+      }
       handleLogout();
     };
   }, []);
@@ -157,17 +195,18 @@ function App() {
     }
   };
 
-  //Function to start the ping-pong mechanism
-  // const startPingPong = (socket) => {
-  //   // Start the ping-pong mechanism
-  //   setInterval(() => {
-  //     if (socket.readyState === WebSocket.OPEN) {
-  //       // Send a ping message to the server
-  //       console.log("We are sending a ping message");
-  //       socket.send("ping");
-  //     }
-  //   }, 90);
-  // };
+  // Function to start the ping-pong mechanism for idle detection
+  const startPingPong = (socket) => {
+    const pingInterval = setInterval(() => {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        // Send a ping message to the server
+        console.log("Sending ping to server");
+        socket.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 30000); // Send ping every 30 seconds
+
+    return pingInterval;
+  };
 
   return (
     <div className="chat-app">
@@ -230,11 +269,15 @@ function App() {
               </div>
 
               <div className="message-section">
-                <ChatBox
-                  messages={messages}
-                  myUserName={myUserName}
-                  selectedUser={reciverusername}
-                />
+                {isLoadingHistory ? (
+                  <div className="loading-history">Loading message history...</div>
+                ) : (
+                  <ChatBox
+                    messages={messages}
+                    myUserName={myUserName}
+                    selectedUser={reciverusername}
+                  />
+                )}
                 <div className="message-input">
                   <input
                     type="text"
