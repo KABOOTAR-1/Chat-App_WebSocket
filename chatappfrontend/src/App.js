@@ -19,7 +19,7 @@ function App() {
   const fetchData = async (shouldFetchData = true,activeUsers=null) => {
     if (shouldFetchData) {
       try {
-        const response = await axios.get("http://localhost:4000"); // Replace with your backend URL
+        const response = await axios.get("https://chat-app-websocket-g3uh.onrender.com/"); // Replace with your backend URL
         const players = response.data.filter(
           (user) => user.username !== username
         );
@@ -34,7 +34,7 @@ function App() {
   };
 
   const handleSocketConnection = () => {
-    const newSocket = new WebSocket("ws://localhost:4000");
+    const newSocket = new WebSocket("wss://chat-app-websocket-g3uh.onrender.com/");
 
     // Event listeners
     newSocket.onopen = () => {
